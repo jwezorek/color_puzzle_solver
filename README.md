@@ -27,7 +27,12 @@ The default solver performs a breadth-first search over game states. Because BFS
 explores states in increasing move count, the first solution found is a shortest
 solution under the move rules above.
 
-Visited states are stored in a game_state_set using game_state_token, so equivalent states are not expanded repeatedly. A game_state_token represents each tube as a two-byte value: a four-element tuple of four-bit color values, with each color occupying one hexadecimal digit. Because the physical order of the tubes does not affect whether a state is solvable, tokens are canonicalized by sorting these two-byte tube representations before they are stored or compared.
+Visited states are stored in a game_state_set using game_state_token, so equivalent 
+states are not expanded repeatedly. A game_state_token represents each tube as a 
+two-byte value: a four-element tuple of four-bit color values, with each color 
+occupying one hexadecimal digit. Because the physical order of the tubes does 
+not affect whether a state is solvable, tokens are canonicalized by sorting these 
+two-byte tube representations before they are stored or compared.
 
 The solver also supports trying specific two-color openings. In that mode, it
 first consolidates active runs of the first opening color into tube 11, then
@@ -94,7 +99,7 @@ color_puzzle_solver puzzle.txt
 Example output:
 
 ```text
-best solution is 12 moves:
+best solution is 32 moves:
 3 -> 11
 5 -> 12
 ...
@@ -111,8 +116,8 @@ color_puzzle_solver puzzle.txt catalog
 Example output:
 
 ```text
-R-G is solvable in 10 moves.
-B-Y is solvable in 12 moves.
+R-G is solvable in 31 moves.
+B-Y is solvable in 32 moves.
 ```
 
 ### Force a specific opening
