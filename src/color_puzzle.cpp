@@ -257,27 +257,45 @@ std::vector<move> solve(const game_state& state) {
 
 }
 
-std::optional<opening> perform_opening(const game_state& state, color opening_1, color opening_2) {
+std::optional<opening> perform_opening( const game_state& state,  
+        color opening_1, color opening_2 ) {
 
-    auto [state_after_1, opening_moves_1] = consolidate_color(state, opening_1, 10);
-    if (opening_moves_1.empty()) {
-        return {};
+    constexpr auto start_tube_1 = 10;
+    constexpr auto start_tube_2 = 11;
+
+    std::array<std::tuple<color, int>, 2> steps = {{
+        { opening_1, start_tube_1 },
+        { opening_2, start_tube_2 }
+    }};
+
+    auto current_state = state;
+    std::vector<move> moves;
+    std::size_t step_index = 0;
+
+    while (true) {
+        const auto& [color, tube] = steps[step_index];
+        const auto& [next_state, new_moves] = consolidate_color(
+            current_state, color, tube
+        );
+        if (new_moves.empty()) {
+            break;
+        }
+
+        r::copy(new_moves, std::back_inserter(moves));
+
+        current_state = std::move(next_state);
+        step_index = (step_index + 1) % steps.size();
     }
 
-    auto [state_after_2, opening_moves_2] = consolidate_color(state_after_1, opening_2, 11);
-    if (opening_moves_2.empty()) {
+    if (moves.empty()) {
         return {};
     }
-
-    auto moves = opening_moves_1;
-    r::copy(opening_moves_2, std::back_inserter(moves));
 
     return opening{
         std::format("{}-{}", color_to_char(opening_1), color_to_char(opening_2)),
-        state_after_2,
-        moves
+        std::move(current_state),
+        std::move(moves)
     };
-
 }
 
 std::vector<move> solve(const opening& opening) {
