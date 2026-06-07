@@ -8,7 +8,7 @@
 
 enum class color {
     green,
-    lilac,
+    lavender,
     purple,
     blue,
     white,
@@ -31,6 +31,7 @@ struct solution_record {
 
 constexpr int k_tube_size = 4;
 constexpr int k_num_tubes = 12;
+constexpr int k_num_colors = 10;
 
 using tube = boost::container::static_vector<color, k_tube_size>;
 using game_state = std::array<tube, k_num_tubes>;

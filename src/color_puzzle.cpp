@@ -9,11 +9,31 @@
 #include <queue>
 #include <optional>
 #include <algorithm>
+#include <print>
 
 namespace r = std::ranges;
 namespace rv = std::ranges::views;
 
 namespace {
+
+    const static std::unordered_map<char, color> g_char_to_color = {
+        {'G', color::green} ,
+        {'L', color::lavender} ,
+        {'P', color::purple} ,
+        {'B', color::blue} ,
+        {'W', color::white} ,
+        {'C', color::cyan} ,
+        {'M', color::magenta} ,
+        {'O', color::orange} ,
+        {'Y', color::yellow} ,
+        {'R', color::red}
+    };
+
+    struct opening {
+        std::string opening_str;
+        game_state post_opening_state;
+        std::vector<move> moves;
+    };
 
     struct search_node {
         std::vector<move> moves;
@@ -24,6 +44,10 @@ namespace {
         color col;
         int num;
     };
+
+    auto all_colors() {
+        return g_char_to_color | rv::values;
+    }
 
     std::optional<color_run> active_color_run(const tube& t) {
         if (t.empty()) {
@@ -42,28 +66,6 @@ namespace {
             active_color,
             count
         };
-    }
-
-    std::vector<std::tuple<color, color>> all_openings(const game_state& state) {
-        auto colors = state | rv::take(k_num_tubes - 2) | rv::transform(
-                [](const auto& tube)->std::optional<color> {
-                    auto active = active_color_run(tube);
-                    if (!active) {
-                        return {};
-                    }
-                    return active->col;
-                }
-            ) | rv::filter(
-                [](auto&& c) {
-                    return c.has_value();
-                }
-            ) | rv::transform(
-                [](auto&& c) {
-                    return c.value();
-                }
-            ) | r::to<std::unordered_set<color>>() | r::to<std::vector>();
-
-        return two_combinations(colors);
     }
 
     bool does_color_run_fit(const tube& tube, const color_run& run) {
@@ -155,45 +157,30 @@ namespace {
     }
 
     color char_to_color(char c) {
-        const static std::unordered_map<char, color> map = {
-            {'G', color::green} ,
-            {'L', color::lilac} ,
-            {'P', color::purple} ,
-            {'B', color::blue} ,
-            {'W', color::white} ,
-            {'C', color::cyan} ,
-            {'M', color::magenta} ,
-            {'O', color::orange} ,
-            {'Y', color::yellow} ,
-            {'R', color::red}
-        };
 
-        if (!map.contains(c)) {
+        if (!g_char_to_color.contains(c)) {
             throw std::runtime_error(std::format("invalid color: {}", c));
         }
 
-        return map.at(c);
+        return g_char_to_color.at(c);
     }
 
     char color_to_char(color c) {
-        const static std::unordered_map<color,char> map = {
-            {color::green  , 'G' } ,
-            {color::lilac  , 'L' } ,
-            {color::purple , 'P' } ,
-            {color::blue   , 'B' } ,
-            {color::white  , 'W' } ,
-            {color::cyan   , 'C' } ,
-            {color::magenta, 'M' } ,
-            {color::orange , 'O' } ,
-            {color::yellow , 'Y' } ,
-            {color::red    , 'R' }
-        };
+        static std::unordered_map<color, char> color_to_char;
+        if (color_to_char.empty()) {
+            color_to_char = g_char_to_color | rv::transform(
+                [](auto&& kvp)->std::unordered_map<color, char>::value_type {
+                    const auto& [k, v] = kvp;
+                    return { v,k };
+                }
+            ) | r::to<std::unordered_map<color, char>>();
+        }
 
-        if (!map.contains(c)) {
+        if (!color_to_char.contains(c)) {
             throw std::runtime_error("invalid color");
         }
 
-        return map.at(c);
+        return color_to_char.at(c);
     }
 
     tube to_tube(const std::string& str) {
@@ -270,44 +257,103 @@ std::vector<move> solve(const game_state& state) {
 
 }
 
-std::vector<move> solve(const game_state& state, color opening_1, color opening_2) {
-    auto [new_state, opening_moves_1] = consolidate_color(state, opening_1, 10);
-    auto [new_state_2, opening_moves_2] = consolidate_color(new_state, opening_2, 11);
-    auto moves = solve(new_state_2);
+std::optional<opening> perform_opening(const game_state& state, color opening_1, color opening_2) {
 
-    if (moves.empty()) {
+    auto [state_after_1, opening_moves_1] = consolidate_color(state, opening_1, 10);
+    if (opening_moves_1.empty()) {
         return {};
     }
-    return std::vector{ 
-            opening_moves_1, opening_moves_2, moves
-        } | rv::join | r::to<std::vector>();
+
+    auto [state_after_2, opening_moves_2] = consolidate_color(state_after_1, opening_2, 11);
+    if (opening_moves_2.empty()) {
+        return {};
+    }
+
+    auto moves = opening_moves_1;
+    r::copy(opening_moves_2, std::back_inserter(moves));
+
+    return opening{
+        std::format("{}-{}", color_to_char(opening_1), color_to_char(opening_2)),
+        state_after_2,
+        moves
+    };
+
+}
+
+std::vector<move> solve(const opening& opening) {
+
+    auto solution_moves = solve(opening.post_opening_state);
+    if (solution_moves.empty()) {
+        return {};
+    }
+
+    auto all_moves = opening.moves;
+    r::copy(solution_moves, std::back_inserter(all_moves));
+
+    return all_moves;
+
+}
+
+std::vector<move> solve(const game_state& state, color opening_1, color opening_2) {
+
+    auto opening = perform_opening(state, opening_1, opening_2);
+    if (!opening) {
+        return {};
+    }
+
+    return solve(*opening);
+
 }
 
 std::vector<solution_record> catalog_solutions(const game_state& state) {
-    auto solutions = all_openings(state) |
-        rv::transform(
-            [&](auto&& opening)->solution_record {
-                const auto& [color_1, color_2] = opening;
-                auto solution = solve(state, color_1, color_2);
-                auto opening_str = std::format("{}-{}",
-                    color_to_char(color_1),
-                    color_to_char(color_2)
-                );
-                return { opening_str, static_cast<int>(solution.size()) };
-            }
-        ) | rv::filter(
-            [](const auto& sol_rec) {
-                return sol_rec.num_moves > 0;
-            }
-        ) | r::to<std::vector>();
+    
+    game_state_set visited_openings;
+    std::vector<solution_record> catalog;
 
-    r::sort(solutions,
+    int i = 0;
+    std::print("\ncataloging solutions...\n  ");
+
+    for (const auto& [c1, c2] : rv::cartesian_product(all_colors(), all_colors())) {
+
+        std::print(".");
+        if (++i % k_num_colors == 0) {
+            std::print("\n  ");
+        }
+
+        if (c1 == c2) {
+            continue;
+        }
+
+        auto opening_result = perform_opening(state, c1, c2);
+        if (!opening_result) {
+            continue;
+        }
+        auto tok = game_state_token(opening_result->post_opening_state);
+        if (visited_openings.contains(tok)) {
+            continue;
+        }
+        visited_openings.insert(tok);
+
+        auto solution = solve(*opening_result);
+        if (solution.empty()) {
+            continue;
+        }
+
+        catalog.emplace_back(
+            opening_result->opening_str,
+            static_cast<int>(solution.size())
+        );
+
+    }
+    std::println("");
+
+    r::sort(catalog,
         [](const auto& lhs, const auto& rhs) {
             return lhs.num_moves < rhs.num_moves;
         }
     );
 
-    return solutions;
+    return catalog;
 }
 
 std::optional<color> color_from_char(char c) {
