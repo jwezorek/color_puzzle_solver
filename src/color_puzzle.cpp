@@ -271,6 +271,7 @@ std::optional<opening> perform_opening( const game_state& state,
     auto current_state = state;
     std::vector<move> moves;
     std::size_t step_index = 0;
+    int opening_move_count = 0;
 
     while (true) {
         const auto& [color, tube] = steps[step_index];
@@ -280,14 +281,13 @@ std::optional<opening> perform_opening( const game_state& state,
         if (new_moves.empty()) {
             break;
         }
-
+        ++opening_move_count;
         r::copy(new_moves, std::back_inserter(moves));
-
         current_state = std::move(next_state);
         step_index = (step_index + 1) % steps.size();
     }
 
-    if (moves.empty()) {
+    if (moves.empty() || opening_move_count < 2) {
         return {};
     }
 
